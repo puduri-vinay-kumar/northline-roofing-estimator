@@ -6,7 +6,7 @@ A database-driven roof estimator and authenticated owner panel built for the Wan
 
 - Mobile-first multi-step public estimator at `/`
 - Basic-auth owner panel at `/owner`
-- Runtime configuration API backed by SQLite
+- Runtime configuration API backed by SQLite locally and Postgres in production
 - Draft/publish configuration workflow with immutable historical versions
 - Server-side answer validation and pricing calculation
 - Lead storage and readable owner lead table
@@ -41,7 +41,8 @@ Then open `http://localhost:3000`.
 | `PORT` | No | `3000` | Production HTTP port |
 | `OWNER_USERNAME` | Production: yes | `dale` | Basic-auth username |
 | `OWNER_PASSWORD` | Production: yes | `northline-demo` | Basic-auth password |
-| `DATABASE_PATH` | No | `./data/northline.db` | Persistent SQLite file |
+| `DATABASE_PATH` | No | `./data/northline.db` | Local SQLite file |
+| `DATABASE_URL` | Production | — | Postgres connection URL; switches persistence to Postgres |
 
 Test credentials for local review: `dale` / `northline-demo`. Set a private password for deployment.
 
@@ -67,5 +68,4 @@ The generated `data/northline.db` file is deliberately gitignored. A fresh datab
 
 ## Deployment note
 
-Use a Node host with a persistent disk (for example Render or Railway), not a serverless filesystem. Build with `npm install && npm run build`, start with `npm start`, attach persistent storage at the directory used by `DATABASE_PATH`, and set non-default owner credentials.
-
+On Render, use a web service plus Postgres in the same region and pass the database's internal connection string as `DATABASE_URL`. Build with `npm install && npm run build`, start with `npm start`, and set non-default owner credentials. Free Render Postgres databases expire after 30 days; use a paid database for a long-lived client deployment.

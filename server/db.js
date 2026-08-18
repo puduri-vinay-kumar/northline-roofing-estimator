@@ -83,3 +83,7 @@ export function listLeads(db) {
     estimate_low: row.estimate_low, estimate_high: row.estimate_high
   }));
 }
+
+export function insertLead(db, lead) {
+  db.prepare('INSERT INTO leads VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(lead.id, lead.captured_at, lead.config_version, lead.name.trim(), lead.phone.trim(), lead.email.trim().toLowerCase(), JSON.stringify(lead.answers), lead.estimate_low, lead.estimate_high);
+}

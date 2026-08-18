@@ -2,11 +2,11 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
-import { openDatabase, getPublishedConfig, getEditableConfig, saveDraft, publishDraft, listLeads } from './db.js';
+import { openDatabase, getPublishedConfig, getEditableConfig, saveDraft, publishDraft, listLeads, insertLead } from './store.js';
 import { calculateEstimate, validateConfig } from './calculate.js';
 
 const port = Number(process.env.PORT || 3000);
-const db = openDatabase();
+const db = await openDatabase();
 const dist = join(process.cwd(), 'dist');
 
 const json = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(data)); };
@@ -37,30 +37,30 @@ const validateContact = contact => {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, getPublishedConfig(db));
+    if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, await getPublishedConfig(db));
     if (req.method === 'POST' && url.pathname === '/api/leads') {
       const body = await parseBody(req);
       const contactErrors = validateContact(body.contact);
-      const config = getPublishedConfig(db, Number(body.configVersion));
+      const config = await getPublishedConfig(db, Number(body.configVersion));
       if (!config) return json(res, 409, { error: 'This estimate session expired. Please restart with the latest questions.' });
       const estimate = calculateEstimate(config, body.answers || {});
       if (estimate.errors || Object.keys(contactErrors).length) return json(res, 422, { errors: { ...estimate.errors, ...contactErrors } });
       const lead = { id: `ld_${randomUUID().slice(0, 8)}`, captured_at: new Date().toISOString(), config_version: config.config_version, ...body.contact, answers: body.answers, estimate_low: estimate.low, estimate_high: estimate.high };
-      db.prepare('INSERT INTO leads VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(lead.id, lead.captured_at, lead.config_version, lead.name.trim(), lead.phone.trim(), lead.email.trim().toLowerCase(), JSON.stringify(lead.answers), lead.estimate_low, lead.estimate_high);
+      await insertLead(db, lead);
       return json(res, 201, lead);
     }
     if (url.pathname.startsWith('/api/admin')) {
       if (!requireAuth(req, res)) return;
-      if (req.method === 'GET' && url.pathname === '/api/admin/config') return json(res, 200, getEditableConfig(db));
+      if (req.method === 'GET' && url.pathname === '/api/admin/config') return json(res, 200, await getEditableConfig(db));
       if (req.method === 'PUT' && url.pathname === '/api/admin/config') {
         const body = await parseBody(req); const errors = validateConfig(body);
         if (errors.length) return json(res, 422, { error: errors[0], errors });
-        return json(res, 200, { config: saveDraft(db, body), message: 'Draft saved. The public estimator is unchanged.' });
+        return json(res, 200, { config: await saveDraft(db, body), message: 'Draft saved. The public estimator is unchanged.' });
       }
       if (req.method === 'POST' && url.pathname === '/api/admin/publish') {
-        const published = publishDraft(db); return published ? json(res, 200, { config: published, message: `Version ${published.config_version} is live.` }) : json(res, 409, { error: 'There is no draft to publish.' });
+        const published = await publishDraft(db); return published ? json(res, 200, { config: published, message: `Version ${published.config_version} is live.` }) : json(res, 409, { error: 'There is no draft to publish.' });
       }
-      if (req.method === 'GET' && url.pathname === '/api/admin/leads') return json(res, 200, listLeads(db));
+      if (req.method === 'GET' && url.pathname === '/api/admin/leads') return json(res, 200, await listLeads(db));
     }
     if (url.pathname === '/owner' && !requireAuth(req, res)) return;
     if (req.method === 'GET') {

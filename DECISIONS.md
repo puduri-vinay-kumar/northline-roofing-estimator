@@ -18,6 +18,8 @@ The medium-pitch multiplier is the string `"1.12"` while the other numbers are n
 
 I did not add new-question creation, CSV export, webhooks, password management, audit identities, or a full configuration history screen. These are useful, but the safe edit/publish flow, core estimator, lead persistence, validation, authentication, documentation, and tests directly protect the required path. Basic auth is intentionally used because the brief permits it; a client build would use per-user accounts and audit logs.
 
+For deployment, the storage layer supports local SQLite and production Postgres behind the same interface. Postgres avoids depending on an ephemeral web-service filesystem and preserves leads/configuration across free-service restarts.
+
 ## Questions for Dale
 
 I would ask whether the estimate should include labor and tax; whether minimum project pricing applies; how unknown roof area should be handled; whether hidden calculation inputs should use a neutral value or block publishing; what disclaimer and consent language counsel approves; which team members need access; how long leads should be retained; and whether follow-up should go to a CRM, email, or both.
