@@ -4,6 +4,7 @@ import { extname, join, normalize } from 'node:path';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { openDatabase, getPublishedConfig, getEditableConfig, saveDraft, publishDraft, listLeads, insertLead } from './store.js';
 import { calculateEstimate, validateConfig } from './calculate.js';
+import { toPublicConfig } from './public-config.js';
 
 const port = Number(process.env.PORT || 3000);
 const db = await openDatabase();
@@ -37,7 +38,7 @@ const validateContact = contact => {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, await getPublishedConfig(db));
+    if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, toPublicConfig(await getPublishedConfig(db)));
     if (req.method === 'POST' && url.pathname === '/api/leads') {
       const body = await parseBody(req);
       const contactErrors = validateContact(body.contact);

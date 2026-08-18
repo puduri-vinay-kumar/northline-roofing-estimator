@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateEstimate, validateAnswers, validateConfig } from '../server/calculate.js';
 import { seedConfig } from '../server/seed.js';
+import { toPublicConfig } from '../server/public-config.js';
 
 const valid = { roof_area: 1000, material: 'asphalt_arch', pitch: 'medium', layers: '1', stories: '2' };
 
@@ -38,4 +39,12 @@ test('uses a database-configured fallback when a pricing question is hidden', ()
 test('blocks configuration that could break the live calculation', () => {
   const config = structuredClone(seedConfig); config.questions.find(q => q.key === 'material').options[0].rate_per_sqft = 'oops';
   assert.match(validateConfig(config).join(' '), /invalid rate_per_sqft/);
+});
+
+test('public configuration contains UI fields but no pricing logic', () => {
+  const publicConfig = toPublicConfig(seedConfig);
+  assert.equal(publicConfig.questions.length, 5);
+  assert.equal(publicConfig.questions.find(q => q.key === 'material').options[0].label, 'Asphalt shingle - 3-tab');
+  const serialized = JSON.stringify(publicConfig);
+  for (const secret of ['rate_per_sqft', 'multiplier', 'tear_off_per_sqft', 'modifiers', 'inactive_default']) assert.equal(serialized.includes(secret), false);
 });
