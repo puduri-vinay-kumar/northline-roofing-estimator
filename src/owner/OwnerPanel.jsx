@@ -4,14 +4,14 @@ import { ErrorBox, Money, Spinner, Toggle } from '../components.jsx';
 
 export function OwnerPanel() {
   const [tab, setTab] = useState('configuration'); const [config, setConfig] = useState(null); const [leads, setLeads] = useState([]);
-  const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [failure, setFailure] = useState('');
-  const load = () => { setFailure(''); Promise.all([api.adminConfig(), api.leads()]).then(([c, l]) => { setConfig(c); setLeads(l); }).catch(e => setFailure(e.message)); };
+  const [busy, setBusy] = useState(false); const [dirty, setDirty] = useState(false); const [message, setMessage] = useState(''); const [failure, setFailure] = useState('');
+  const load = () => { setFailure(''); Promise.all([api.adminConfig(), api.leads()]).then(([c, l]) => { setConfig(c); setLeads(l); setDirty(false); }).catch(e => setFailure(e.message)); };
   useEffect(load, []);
-  const mutate = fn => setConfig(current => { const next = structuredClone(current); fn(next); return next; });
-  const save = async () => { setBusy(true); setFailure(''); try { const result = await api.saveConfig(config); setConfig({ ...result.config, is_draft: true }); setMessage(result.message); } catch (e) { setFailure(e.message); } finally { setBusy(false); } };
-  const publish = async () => { setBusy(true); setFailure(''); try { const result = await api.publish(); setConfig({ ...result.config, is_draft: false }); setMessage(result.message); } catch (e) { setFailure(e.message); } finally { setBusy(false); } };
+  const mutate = fn => { setDirty(true); setMessage(''); setConfig(current => { const next = structuredClone(current); fn(next); return next; }); };
+  const save = async () => { setBusy(true); setFailure(''); try { const result = await api.saveConfig(config); setConfig({ ...result.config, is_draft: true }); setDirty(false); setMessage(result.message); } catch (e) { setFailure(e.message); } finally { setBusy(false); } };
+  const publish = async () => { setBusy(true); setFailure(''); try { const result = await api.publish(); setConfig({ ...result.config, is_draft: false }); setDirty(false); setMessage(result.message); } catch (e) { setFailure(e.message); } finally { setBusy(false); } };
   return <div className="owner-page"><aside><a className="owner-brand" href="/owner"><span className="brand-mark">N</span><b>Northline Roofing<br />& Exteriors</b></a><nav><button className={tab === 'configuration' ? 'active' : ''} onClick={() => setTab('configuration')}>Configuration</button><button className={tab === 'leads' ? 'active' : ''} onClick={() => setTab('leads')}>Leads <span>{leads.length}</span></button></nav><a href="/">View public estimator ↗</a></aside>
-    <main className="owner-main"><header><div><p>Owner panel</p><h1>{tab === 'configuration' ? 'Estimator configuration' : 'Captured leads'}</h1></div>{tab === 'configuration' ? <div className="owner-actions"><button className="secondary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save draft'}</button><button className="primary" disabled={busy || !config?.is_draft} onClick={publish}>Publish changes</button></div> : null}</header>
+    <main className="owner-main"><header><div><p>Owner panel</p><h1>{tab === 'configuration' ? 'Estimator configuration' : 'Captured leads'}</h1></div>{tab === 'configuration' ? <div className="owner-actions"><button className="secondary" disabled={busy || !dirty} onClick={save}>{busy ? 'Saving…' : dirty ? 'Save draft' : 'Draft saved'}</button><button className="primary" disabled={busy || dirty || !config?.is_draft} onClick={publish}>Publish changes</button></div> : null}</header>
     {failure ? <ErrorBox retry={load}>{failure}</ErrorBox> : null}{message ? <div className="alert info" role="status">{message}</div> : null}
     {!config ? <Spinner /> : tab === 'configuration' ? <ConfigEditor config={config} mutate={mutate} /> : <Leads leads={leads} config={config} />}</main></div>;
 }
@@ -26,4 +26,14 @@ function ConfigEditor({ config, mutate }) { return <div className="editor">
   <section><div className="section-heading"><div><h2>Estimate modifiers</h2><p>These values affect every new estimate after publishing.</p></div></div><div className="modifier-grid">{Object.entries(config.modifiers).map(([key, value]) => <label key={key}><span>{({ waste_factor: 'Waste factor', permit_flat_fee: 'Permit flat fee', range_spread_pct: 'Range spread' })[key]}</span><input type="number" step="0.01" value={value} onChange={e => mutate(c => { c.modifiers[key] = Number(e.target.value); })} /><small>{key === 'waste_factor' ? 'Decimal (0.10 = 10%)' : key === 'permit_flat_fee' ? 'US dollars' : 'Percent'}</small></label>)}</div></section>
   </div>; }
 
-function Leads({ leads, config }) { const labels = new Map(config.questions.flatMap(q => q.options?.map(o => [o.value, o.label]) || [])); return <section className="leads-section"><div className="table-wrap"><table><thead><tr><th>Homeowner</th><th>Contact</th><th>Project</th><th>Estimate</th><th>Captured</th></tr></thead><tbody>{leads.map(lead => <tr key={lead.id}><td><b>{lead.name}</b><small>Config v{lead.config_version}</small></td><td><a href={`tel:${lead.phone}`}>{lead.phone}</a><a href={`mailto:${lead.email}`}>{lead.email}</a></td><td>{lead.answers.roof_area ? `${Number(lead.answers.roof_area).toLocaleString()} sq ft` : 'Historical lead'}<small>{labels.get(lead.answers.material) || lead.answers.material || '—'}</small></td><td><b><Money value={lead.estimate_low} /> – <Money value={lead.estimate_high} /></b></td><td>{new Date(lead.captured_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td></tr>)}</tbody></table></div></section>; }
+function Leads({ leads, config }) {
+  const questions = new Map(config.questions.map(question => [question.key, question]));
+  const formatAnswer = (key, value) => {
+    const question = questions.get(key); const option = question?.options?.find(item => item.value === String(value));
+    if (option) return option.label;
+    if (question?.unit && Number.isFinite(Number(value))) return `${Number(value).toLocaleString()} ${question.unit}`;
+    return String(value);
+  };
+  const answerLabel = key => questions.get(key)?.label || key.replaceAll('_', ' ').replace(/^./, letter => letter.toUpperCase());
+  return <section className="leads-section"><div className="table-wrap"><table><thead><tr><th>Homeowner</th><th>Contact</th><th>Answers</th><th>Estimate</th><th>Captured</th></tr></thead><tbody>{leads.map(lead => <tr key={lead.id}><td><b>{lead.name}</b><small>Config v{lead.config_version}</small></td><td><a href={`tel:${lead.phone}`}>{lead.phone}</a><a href={`mailto:${lead.email}`}>{lead.email}</a></td><td><details className="answer-details"><summary>{Object.keys(lead.answers).length} answers</summary><dl>{Object.entries(lead.answers).map(([key, value]) => <div key={key}><dt>{answerLabel(key)}</dt><dd>{formatAnswer(key, value)}</dd></div>)}</dl></details></td><td><b><Money value={lead.estimate_low} /> – <Money value={lead.estimate_high} /></b></td><td>{new Date(lead.captured_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td></tr>)}</tbody></table></div></section>;
+}
