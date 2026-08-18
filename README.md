@@ -46,6 +46,15 @@ Then open `http://localhost:3000`.
 
 Test credentials for local review: `dale` / `northline-demo`. Set a private password for deployment.
 
+## Live review
+
+- Public estimator: https://northline-roofing-estimator-utbn.onrender.com/
+- Owner panel: https://northline-roofing-estimator-utbn.onrender.com/owner
+- Owner username: `dale`
+- Owner password: supplied with the submission email
+
+The free web service can take up to approximately 50 seconds to wake after inactivity. The free review database expires on September 17, 2026.
+
 ## API overview
 
 | Method | Route | Auth | Purpose |
