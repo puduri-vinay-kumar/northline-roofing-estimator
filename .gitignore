@@ -1,0 +1,14 @@
+node_modules/
+dist/
+data/*.db
+data/*.db-*
+.env
+.DS_Store
+.tools/
+.gh-cli/
+.repo-git/
+.agents/
+.codex/
+tmp/
+upload/
+*.zip
